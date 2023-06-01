@@ -80,7 +80,7 @@ class CompaniesResource:
             linkedin_url = source_obj.get('linkedin_url')
             domain = source_obj.get('domain')
             return Company(
-                id=id_,
+                id_=id_,
                 name=name,
                 industry=industry,
                 locality=locality,
@@ -101,7 +101,7 @@ class CompaniesResource:
             {
                 '_op_type': 'index',
                 '_index': self._es_index_name,
-                '_id': company.id,
+                '_id': company.id_,
                 '_source': {
                     'name': company.name,
                     'locality': company.locality,
@@ -114,32 +114,35 @@ class CompaniesResource:
         )
         elasticsearch.helpers.bulk(es_client, actions)
 
-    def bulk_update(self, documents: Iterable[Mapping[str, Any]]) -> None:
+    def bulk_update(self, companies: Iterable[Company]) -> None:
         """
         Bulk update multiple documents from Elasticsearch companies index.
 
         Args:
-            documents (Iterable[Mapping[str, Any]]): documents to be updated.
+            companies (Iterable[Company]): company objects to be updated.
         """
-        actions: Generator[Mapping[str, str], None, None] = (
+        actions: Generator[Mapping[str, Any], None, None] = (
             {
                 '_op_type': 'update',
                 '_index': self._es_index_name,
-                '_id': document['id'],
-                '_source': document
+                '_id': company.id_,
+                '_source': company.as_elasticsearch_document_for_bulk_update()
             }
-            for document in documents
+            for company in companies
         )
-        es_client.bulk(index=self._es_index_name, operations=actions)
+        try:
+            elasticsearch.helpers.bulk(es_client, actions)
+        except elasticsearch.helpers.BulkIndexError:
+            pass
 
-    def bulk_delete(self, ids: Iterable[str]):
+    def bulk_delete(self, ids: Iterable[str]) -> None:
         """
         Bulk delete multiple documents from Elasticsearch companies index.
 
         Args:
             ids (Iterable[str]): The IDs of the documents to delete.
         """
-        actions: Generator[dict[str, Any], None, None] = (
+        actions: Generator[Mapping[str, Any], None, None] = (
             {
                 '_op_type': 'delete',
                 '_index': self._es_index_name,
@@ -151,4 +154,3 @@ class CompaniesResource:
             elasticsearch.helpers.bulk(es_client, actions)
         except elasticsearch.helpers.BulkIndexError:
             pass
-
