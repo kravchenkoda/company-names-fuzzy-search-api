@@ -105,7 +105,7 @@ class SearchQuery:
         Perform the search query and return the results.
 
         Args:
-            query (dict): The Elasticsearch query to execute.
+            query (Mapping[str, Any]): The Elasticsearch query to execute.
 
         Returns:
             Mapping[str, Any]: search results.
