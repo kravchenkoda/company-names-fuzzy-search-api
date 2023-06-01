@@ -1,10 +1,10 @@
-import json
+from typing import Mapping, Any, Iterable
 
 from es import es_client
 
 
 class SearchQuery:
-    """Class for performing search queries in Elasticsearch."""
+    """Class for performing search in Elasticsearch."""
 
     def __init__(self, index, max_results=10):
         """Initialize the SearchQuery instance.
@@ -17,7 +17,7 @@ class SearchQuery:
         self.max_num_results: int = max_results
 
     @staticmethod
-    def fuzzy_match(field: str, query: str) -> dict:
+    def fuzzy_match(field: str, query: str) -> Mapping[str, Any]:
         """
         Create a fuzzy match query for a specific field.
 
@@ -26,9 +26,9 @@ class SearchQuery:
             query (str): The query string to search for.
 
         Returns:
-        dict: The fuzzy match query.
+            Mapping[str, Any]: The fuzzy match query.
         """
-        query: dict = {
+        query: Mapping[str, Any] = {
             'match': {
                 field: {
                     'query': query,
@@ -39,7 +39,7 @@ class SearchQuery:
         return query
 
     @staticmethod
-    def exact_match(field: str, query: str) -> dict:
+    def exact_match(field: str, query: str) -> Mapping[str, Any]:
         """
         Create an exact match query for a specific field.
 
@@ -48,9 +48,9 @@ class SearchQuery:
             query (str): The query string to search for.
 
         Returns:
-            dict: The exact match query.
+            Mapping[str, Any]: The term-level query.
         """
-        query = {
+        query: Mapping[str, Any] = {
             'term': {
                 field: query
             }
@@ -58,7 +58,7 @@ class SearchQuery:
         return query
 
     @staticmethod
-    def filter(field: str, query: str) -> dict:
+    def filter(field: str, query: str) -> Mapping[str, Any]:
         """
         Create a filter query for a specific field.
 
@@ -67,9 +67,9 @@ class SearchQuery:
             query (str): The filter value to match.
 
        Returns:
-            dict: The filter query.
+            Mapping[str, Any]: The filter query.
         """
-        query: dict = {
+        query: Mapping[str, Any] = {
             'term': {
                 f'{field}.keyword': query
             }
@@ -77,19 +77,22 @@ class SearchQuery:
         return query
 
     @staticmethod
-    def build_query(queries: list[dict], filters: list[dict] | None = None) -> dict:
+    def build_query(
+            queries: Iterable[Mapping[str, Any]],
+            filters: Iterable[Mapping[str, Any]] | None = None
+    ) -> Mapping[str, Any]:
         """
         Build the full search query combining multiple queries and filters.
 
         Args:
-            queries (list[dict]): List of queries to include in the must clause.
-            filters (list[dict], optional): List of filters to include in the filter clause. Defaults to None.
+            queries (Iterable[Mapping[str, Any]]): List of queries to include in the must clause.
+            filters (Iterable[Mapping[str, Any]], optional): List of filters to
+            include in the filter clause. Defaults to None.
 
         Returns:
-            dict: The complete Elasticsearch query.
+            Mapping[str, Any]: The complete search query.
         """
-
-        query: dict = {
+        query: Mapping[str, Any] = {
                 "bool": {
                     "must": queries,
                     "filter": filters or []
@@ -97,7 +100,7 @@ class SearchQuery:
             }
         return query
 
-    def perform_search(self, query: dict) -> str:
+    def perform_search(self, query: Mapping[str, Any]) -> Mapping[str, Any]:
         """
         Perform the search query and return the results.
 
@@ -105,12 +108,12 @@ class SearchQuery:
             query (dict): The Elasticsearch query to execute.
 
         Returns:
-            str: JSON-formatted search results.
+            Mapping[str, Any]: search results.
         """
         response = es_client.search(index=self.index, query=query, size=self.max_num_results)
-        return json.dumps(response['hits']['hits'])
+        return response['hits']['hits']
 
-    def perform_search_by_id(self, document_id: int) -> str:
+    def perform_search_by_id(self, document_id: int) -> Mapping[str, Any]:
         """
         Perform the search query by document ID and return the results.
 
@@ -118,7 +121,7 @@ class SearchQuery:
             document_id (int): The ID of the document to retrieve.
 
         Returns:
-            str: JSON-formatted search results.
+            Mapping[str, Any]: The search result for the specified document ID.
         """
-        response = es_client.get(self.index, document_id)
-        return json.dumps(response['hits']['hits'])
+        response = es_client.get(index=self.index, id=document_id)
+        return response['_source']
