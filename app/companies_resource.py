@@ -3,7 +3,6 @@ from typing import Mapping, Any, Iterable, Generator
 import elasticsearch
 import elasticsearch.helpers
 
-from search_query import SearchQuery
 from company import Company
 from company_unique_ids import CompanyUniqueIds
 from es import es_client
@@ -54,8 +53,7 @@ class CompaniesResource:
         Args:
             id_ (str): The ID of the company to delete.
         """
-        es_id: int = SearchQuery(COMPANY_INDEX_NAME). \
-            perform_search_by_id(id_)['_id']
+        es_id = Company(id_).elasticsearch_id
         es_client.delete(index=COMPANY_INDEX_NAME, id=es_id)
         CompanyUniqueIds.remove(id_)
 
@@ -69,8 +67,7 @@ class CompaniesResource:
         Returns:
             Company: The retrieved company object.
         """
-        es_id: int = SearchQuery(COMPANY_INDEX_NAME). \
-            perform_search_by_id(id_)['_id']
+        es_id = Company(id_).elasticsearch_id
         response = es_client.get(index=COMPANY_INDEX_NAME, id=es_id)
         source_obj = response['_source']
 
@@ -130,7 +127,7 @@ class CompaniesResource:
             {
                 '_op_type': 'update',
                 '_index': COMPANY_INDEX_NAME,
-                '_id': company.id,
+                '_id': company.elasticsearch_id,
                 '_source': company.as_es_document_for_bulk_update()
             }
             for company in companies
