@@ -3,6 +3,7 @@ from typing import Iterable, Mapping, Any
 
 import elasticsearch
 
+from search_query import SearchQuery
 from company_unique_ids import CompanyUniqueIds
 from es import es_client
 
@@ -20,10 +21,16 @@ class Company:
         linkedin_url (str | None): The company's LinkedIn URL (optional).
         domain (str | None): The company's domain (optional).
 
+    Properties:
+        eslasticsearch_id (str): The company's document id in Elasticsearch.
+
     Methods:
         update: Update the company's fields with new values.
-        as_es_document_dict: Get the company as a source object dictionary for Elasticsearch.
-        as_es_document_for_bulk_update: Get the company as a source object for bulk update in Elasticsearch.
+        as_es_document_dict: Get the company as a source object dictionary for
+        Elasticsearch.
+
+        as_es_document_for_bulk_update: Get the company as a source object for
+        bulk update in Elasticsearch.
     """
     name: str
     id: int = field(default_factory=CompanyUniqueIds.generate)
@@ -31,6 +38,21 @@ class Company:
     industry: str | None = None
     linkedin_url: str | None = None
     domain: str | None = None
+
+    @property
+    def elasticsearch_id(self) -> str:
+        """
+        Get the Elasticsearch ID associated with the company based on its ID.
+
+        Returns:
+            str: The Elasticsearch ID of the company.
+        """
+        search = SearchQuery('companies')
+        query: Mapping[str, Any] = search.exact_match('id', self.id)
+        response: list[Mapping[str, Any]] = search.perform_search(
+            search.build_query([query])
+        )
+        return response[0]['_id']
 
     def update(self, *fields_to_values: Iterable[tuple[str, Any]]):
         """
