@@ -3,12 +3,13 @@ from typing import Mapping, Any, Iterable, Generator
 import elasticsearch
 import elasticsearch.helpers
 
+from search_query import SearchQuery
 from company import Company
 from company_unique_ids import CompanyUniqueIds
 from es import es_client
 
-
 COMPANY_INDEX_NAME = 'companies'
+
 
 class CompaniesResource:
     """
@@ -17,6 +18,7 @@ class CompaniesResource:
     This class provides methods to interact with an Elasticsearch index that stores information about companies.
     It allows adding, deleting, and retrieving company documents, as well as performing bulk operations.
     """
+
     @property
     def companies_count(self):
         """
@@ -52,11 +54,10 @@ class CompaniesResource:
         Args:
             id_ (str): The ID of the company to delete.
         """
-        try:
-            es_client.delete(index=COMPANY_INDEX_NAME, id=id_)
-            CompanyUniqueIds.remove(id_)
-        except elasticsearch.NotFoundError:
-            pass
+        es_id: int = SearchQuery(COMPANY_INDEX_NAME). \
+            perform_search_by_id(id_)['_id']
+        es_client.delete(index=COMPANY_INDEX_NAME, id=es_id)
+        CompanyUniqueIds.remove(id_)
 
     def get_company_by_id(self, id_: int) -> Company:
         """
@@ -68,39 +69,39 @@ class CompaniesResource:
         Returns:
             Company: The retrieved company object.
         """
-        try:
-            response = es_client.get(index=COMPANY_INDEX_NAME, id=id_)
-            source_obj = response['_source']
-            id_ = source_obj.get('id')
-            name = source_obj.get('name')
-            industry = source_obj.get('industry')
-            locality = source_obj.get('locality')
-            linkedin_url = source_obj.get('linkedin_url')
-            domain = source_obj.get('domain')
-            return Company(
-                id=id_,
-                name=name,
-                industry=industry,
-                locality=locality,
-                linkedin_url=linkedin_url,
-                domain=domain
-            )
-        except elasticsearch.NotFoundError:
-            pass
+        es_id: int = SearchQuery(COMPANY_INDEX_NAME). \
+            perform_search_by_id(id_)['_id']
+        response = es_client.get(index=COMPANY_INDEX_NAME, id=es_id)
+        source_obj = response['_source']
 
-    def bulk_add(self, companies: Iterable[Company]) -> None:
+        return Company(
+            id=source_obj['id'],
+            name=source_obj['name'],
+            industry=source_obj['industry'],
+            locality=source_obj['locality'],
+            linkedin_url=source_obj['linkedin_url'],
+            domain=source_obj['domain']
+        )
+
+    def bulk_add(
+            self, companies: Iterable[Company]
+    ) -> tuple[int, list[Mapping[str, Any]]]:
         """
         Bulk add multiple documents to Elasticsearch companies index.
 
         Args:
             companies (Iterable[Company]): The companies to add.
+
+        Returns:
+            tuple[int, list[Mapping[str, Any]]]: A tuple containing the number of
+            successful requests and a list of errors with information about requests.
         """
         actions: Generator[dict[str, Any], None, None] = (
             {
                 '_op_type': 'index',
                 '_index': COMPANY_INDEX_NAME,
-                '_id': company.id,
                 '_source': {
+                    'id': company.id,
                     'name': company.name,
                     'locality': company.locality,
                     'industry': company.industry,
@@ -110,14 +111,20 @@ class CompaniesResource:
             }
             for company in companies
         )
-        elasticsearch.helpers.bulk(es_client, actions)
+        return elasticsearch.helpers.bulk(es_client, actions, raise_on_error=False)
 
-    def bulk_update(self, companies: Iterable[Company]) -> None:
+    def bulk_update(
+            self, companies: Iterable[Company]
+    ) -> tuple[int, list[Mapping[str, Any]]]:
         """
         Bulk update multiple documents from Elasticsearch companies index.
 
         Args:
             companies (Iterable[Company]): company objects to be updated.
+
+        Returns:
+            tuple[int, list[Mapping[str, Any]]]: A tuple containing the number of
+            successful requests and a list of errors with information about requests.
         """
         actions: Generator[Mapping[str, Any], None, None] = (
             {
@@ -128,17 +135,18 @@ class CompaniesResource:
             }
             for company in companies
         )
-        try:
-            elasticsearch.helpers.bulk(es_client, actions)
-        except elasticsearch.helpers.BulkIndexError:
-            pass
+        return elasticsearch.helpers.bulk(es_client, actions, raise_on_error=False)
 
-    def bulk_delete(self, ids: Iterable[str]) -> None:
+    def bulk_delete(self, ids: Iterable[str]) -> tuple[int, list[Mapping[str, Any]]]:
         """
         Bulk delete multiple documents from Elasticsearch companies index.
 
         Args:
             ids (Iterable[str]): The IDs of the documents to delete.
+
+        Returns:
+            tuple[int, list[Mapping[str, Any]]]: A tuple containing the number of
+            successful requests and a list of errors with information about requests.
         """
         actions: Generator[Mapping[str, Any], None, None] = (
             {
@@ -148,7 +156,4 @@ class CompaniesResource:
             }
             for id_ in ids
         )
-        try:
-            elasticsearch.helpers.bulk(es_client, actions)
-        except elasticsearch.helpers.BulkIndexError:
-            pass
+        return elasticsearch.helpers.bulk(es_client, actions, raise_on_error=False)
