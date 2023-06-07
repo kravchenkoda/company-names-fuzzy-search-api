@@ -1,5 +1,7 @@
 from typing import Mapping, Any, Iterable
 
+import elasticsearch
+
 from es import es_client
 
 
@@ -100,7 +102,7 @@ class SearchQuery:
             }
         return query
 
-    def perform_search(self, query: Mapping[str, Any]) -> Mapping[str, Any]:
+    def perform_search(self, query: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         """
         Perform the search query and return the results.
 
@@ -110,18 +112,29 @@ class SearchQuery:
         Returns:
             Mapping[str, Any]: search results.
         """
-        response = es_client.search(index=self.index, query=query, size=self.max_num_results)
-        return response['hits']['hits']
+        response = es_client.search(
+            index=self.index,
+            query=query,
+            size=self.max_num_results
+        )['hits']['hits']
 
-    def perform_search_by_id(self, document_id: int) -> Mapping[str, Any]:
+        if not response:
+            raise elasticsearch.NotFoundError
+
+        return response
+
+    def perform_search_by_id(self, id_: int) -> Mapping[str, Any]:
         """
-        Perform the search query by document ID and return the results.
+        Perform the search query by company ID and return the results.
 
         Args:
-            document_id (int): The ID of the document to retrieve.
+            id_ (int): The ID of the company to retrieve.
 
         Returns:
-            Mapping[str, Any]: The search result for the specified document ID.
+            Mapping[str, Any]: The search result for the specified company ID.
         """
-        response = es_client.get(index=self.index, id=document_id)
-        return response['_source']
+        query: Mapping[str, Any] = self.exact_match('id', id_)
+        response: list[Mapping[str, Any]] = self.perform_search(
+            self.build_query([query])
+        )
+        return response[0]['_source']
