@@ -4,21 +4,19 @@ import elasticsearch
 import elasticsearch.helpers
 
 from company import Company
+from company_unique_ids import CompanyUniqueIds
 from es import es_client
 
 
+COMPANY_INDEX_NAME = 'companies'
+
 class CompaniesResource:
-    """Class representing a resource for managing companies in Elasticsearch.
+    """
+    Class representing a resource for managing companies in Elasticsearch.
 
     This class provides methods to interact with an Elasticsearch index that stores information about companies.
     It allows adding, deleting, and retrieving company documents, as well as performing bulk operations.
-
-    Attributes:
-        _es_index_name (str): The name of the Elasticsearch index used for storing company documents.
-
     """
-    _es_index_name: str = 'companies'
-
     @property
     def companies_count(self):
         """
@@ -27,7 +25,7 @@ class CompaniesResource:
         Returns:
             str: The count of companies.
         """
-        response = es_client.count(index=self._es_index_name)
+        response = es_client.count(index=COMPANY_INDEX_NAME)
         count: str = response['count']
         return count
 
@@ -45,22 +43,22 @@ class CompaniesResource:
             'linkedin_url': company.linkedin_url,
             'domain': company.domain
         }
-        es_client.index(index=self._es_index_name, id=company.id, document=document)
+        es_client.index(index=COMPANY_INDEX_NAME, document=document)
 
-    def delete_company(self, id_: str) -> None:
+    def delete_company(self, id_: int) -> None:
         """
         Delete a company document from Elasticsearch.
 
         Args:
             id_ (str): The ID of the company to delete.
         """
-
         try:
-            es_client.delete(index=self._es_index_name, id=id_)
+            es_client.delete(index=COMPANY_INDEX_NAME, id=id_)
+            CompanyUniqueIds.remove(id_)
         except elasticsearch.NotFoundError:
             pass
 
-    def get_company_by_id(self, id_: str) -> Company:
+    def get_company_by_id(self, id_: int) -> Company:
         """
         Get a company object from Elasticsearch by ID.
 
@@ -71,16 +69,16 @@ class CompaniesResource:
             Company: The retrieved company object.
         """
         try:
-            response = es_client.get(index=self._es_index_name, id=id_)
+            response = es_client.get(index=COMPANY_INDEX_NAME, id=id_)
             source_obj = response['_source']
-            id_ = response.get('_id')
+            id_ = source_obj.get('id')
             name = source_obj.get('name')
             industry = source_obj.get('industry')
             locality = source_obj.get('locality')
             linkedin_url = source_obj.get('linkedin_url')
             domain = source_obj.get('domain')
             return Company(
-                id_=id_,
+                id=id_,
                 name=name,
                 industry=industry,
                 locality=locality,
@@ -100,8 +98,8 @@ class CompaniesResource:
         actions: Generator[dict[str, Any], None, None] = (
             {
                 '_op_type': 'index',
-                '_index': self._es_index_name,
-                '_id': company.id_,
+                '_index': COMPANY_INDEX_NAME,
+                '_id': company.id,
                 '_source': {
                     'name': company.name,
                     'locality': company.locality,
@@ -124,9 +122,9 @@ class CompaniesResource:
         actions: Generator[Mapping[str, Any], None, None] = (
             {
                 '_op_type': 'update',
-                '_index': self._es_index_name,
-                '_id': company.id_,
-                '_source': company.as_elasticsearch_document_for_bulk_update()
+                '_index': COMPANY_INDEX_NAME,
+                '_id': company.id,
+                '_source': company.as_es_document_for_bulk_update()
             }
             for company in companies
         )
@@ -145,7 +143,7 @@ class CompaniesResource:
         actions: Generator[Mapping[str, Any], None, None] = (
             {
                 '_op_type': 'delete',
-                '_index': self._es_index_name,
+                '_index': COMPANY_INDEX_NAME,
                 '_id': id_,
             }
             for id_ in ids
