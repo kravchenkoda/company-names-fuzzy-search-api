@@ -8,7 +8,23 @@ from es import es_client
 
 @dataclass
 class Company:
-    id_: int
+    """
+    A class representing a company.
+
+    Attributes:
+        id (int): The company's ID.
+        name (str): The company's name.
+        locality (str | None): The company's locality (optional).
+        industry (str | None): The company's industry (optional).
+        linkedin_url (str | None): The company's LinkedIn URL (optional).
+        domain (str | None): The company's domain (optional).
+
+    Methods:
+        update: Update the company's fields with new values.
+        as_es_document_dict: Get the company as a source object dictionary for Elasticsearch.
+        as_es_document_for_bulk_update: Get the company as a source object for bulk update in Elasticsearch.
+    """
+    id: int
     name: str
     locality: str | None = None
     industry: str | None = None
@@ -16,7 +32,8 @@ class Company:
     domain: str | None = None
 
     def update(self, *fields_to_values: Iterable[tuple[str, Any]]):
-        """Update the company's fields with new values.
+        """
+        Update the company's fields with new values.
 
         Args:
             *fields_to_values (Iterable[tuple[str, Any]]): The fields and their
@@ -26,11 +43,11 @@ class Company:
             doc: Mapping[str, Any] = {
                 field: value for field, value in fields_to_values
             }
-            es_client.update(id=self.id_, doc=doc)
+            es_client.update(id=self.id, doc=doc)
         except elasticsearch.NotFoundError:
             pass
 
-    def as_elasticsearch_document_dict(self) -> Mapping[str, Any]:
+    def as_es_document_dict(self) -> Mapping[str, Any]:
         """
         Get the company as a source object dictionary for Elasticsearch.
 
@@ -43,3 +60,19 @@ class Company:
             field: value for field, value in as_dict.items() if field != 'id_'
         }
         return as_dict_without_id
+
+    def as_es_document_for_bulk_update(self):
+        """
+        Get the company as a source object for bulk update in Elasticsearch.
+
+        Returns:
+            dict: The company represented as a source object for bulk update.
+        """
+        as_dict: Mapping[str, Any] = asdict(self)
+        as_dict_without_nulls: Mapping[str, Any] = {
+            field: value for field, value in as_dict.items() if field is not None
+        }
+        return {
+            'doc':
+                as_dict_without_nulls
+        }
