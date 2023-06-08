@@ -14,15 +14,15 @@ class Company:
     A class representing a company.
 
     Attributes:
-        name (str): The company's name.
         id (int): The company's ID.
+        name (str): The company's name (optional).
         locality (str | None): The company's locality (optional).
         industry (str | None): The company's industry (optional).
         linkedin_url (str | None): The company's LinkedIn URL (optional).
         domain (str | None): The company's domain (optional).
 
     Properties:
-        eslasticsearch_id (str): The company's document id in Elasticsearch.
+        elasticsearch_id (str): The company's document id in Elasticsearch.
 
     Methods:
         update: Update the company's fields with new values.
@@ -32,8 +32,8 @@ class Company:
         as_es_document_for_bulk_update: Get the company as a source object for
         bulk update in Elasticsearch.
     """
-    name: str
     id: int = field(default_factory=CompanyUniqueIds.generate)
+    name: str | None = None
     locality: str | None = None
     industry: str | None = None
     linkedin_url: str | None = None
