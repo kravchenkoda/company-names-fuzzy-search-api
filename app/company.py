@@ -2,6 +2,7 @@ from dataclasses import dataclass, asdict, field
 from typing import Iterable, Mapping, Any
 
 import elasticsearch
+from elastic_transport import ApiResponseMeta
 
 from search_query import SearchQuery
 from company_unique_ids import CompanyUniqueIds
@@ -26,9 +27,6 @@ class Company:
 
     Methods:
         update: Update the company's fields with new values.
-        as_es_document_dict: Get the company as a source object dictionary for
-        Elasticsearch.
-
         as_es_document_for_bulk_update: Get the company as a source object for
         bulk update in Elasticsearch.
     """
@@ -46,13 +44,30 @@ class Company:
 
         Returns:
             str: The Elasticsearch ID of the company.
+
+        Raises:
+            elasticsearch.NotFoundError: If the company is not found in Elasticsearch.
         """
-        search = SearchQuery('companies')
-        query: Mapping[str, Any] = search.exact_match('id', self.id)
-        response: list[Mapping[str, Any]] = search.perform_search(
-            search.build_query([query])
-        )
-        return response[0]['_id']
+        try:
+            return CompanyUniqueIds.get_ids_cache_map()[self.id]
+        except KeyError:
+            search = SearchQuery('companies')
+            query: Mapping[str, Any] = search.exact_match('id', self.id)
+            response: list[Mapping[str, Any]] = search.perform_search(
+                search.build_query([query])
+            )
+            if not response:
+                raise elasticsearch.NotFoundError(
+                    meta=ApiResponseMeta(
+                        status=404, headers={}, http_version='1.1',
+                        duration=0.0, node=None),
+                    body='',
+                    message=f'document with company id {self.id} '
+                            f'was not found in Elasticsearch')
+            elasticsearch_id: str = response[0]['_id']
+
+            CompanyUniqueIds.populate_ids_cache_map(self.id, elasticsearch_id)
+            return elasticsearch_id
 
     def update(self, *fields_to_values: Iterable[tuple[str, Any]]):
         """
@@ -62,27 +77,10 @@ class Company:
             *fields_to_values (Iterable[tuple[str, Any]]): The fields and their
             new values as tuples.
         """
-        try:
-            doc: Mapping[str, Any] = {
-                field: value for field, value in fields_to_values
-            }
-            es_client.update(id=self.id, doc=doc)
-        except elasticsearch.NotFoundError:
-            pass
-
-    def as_es_document_dict(self) -> Mapping[str, Any]:
-        """
-        Get the company as a source object dictionary for Elasticsearch.
-
-        Returns:
-            Mapping[str, Any]: The company represented as a source object
-            for Elasticsearch.
-        """
-        as_dict: Mapping[str, Any] = asdict(self)
-        as_dict_without_id: Mapping[str, Any] = {
-            field: value for field, value in as_dict.items() if field != 'id_'
+        doc: Mapping[str, Any] = {
+            field: value for field, value in fields_to_values
         }
-        return as_dict_without_id
+        es_client.update(id=self.id, doc=doc)
 
     def as_es_document_for_bulk_update(self) -> Mapping[str, Any]:
         """
