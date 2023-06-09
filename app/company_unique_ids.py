@@ -1,4 +1,5 @@
 from random import randint
+from typing import ClassVar
 
 MIN_ID, MAX_ID = 10000, 999999999
 
@@ -16,10 +17,16 @@ class CompanyUniqueIds:
         from a file.
         generate(): Generate a new unique company ID.
         remove(_id): Remove a company ID from the set of unique IDs.
+        populate_ids_cache_map(key, value): Populate the IDs cache map with the
+        given key-value pair.
+        get_ids_cache_map(): Get the IDs cache map.
+
 
     Class Attributes:
         ids (set): A set containing the unique company IDs.
     """
+    _company_id_to_elasticsearch_id_cache: \
+        ClassVar[dict[str | int, str | int]] = dict()
 
     @classmethod
     def get_initial_ids(cls) -> None:
@@ -37,23 +44,33 @@ class CompanyUniqueIds:
         Returns:
             int: The generated company ID.
         """
-        _id: int = randint(MIN_ID, MAX_ID)
-        if _id in cls.ids:
-            print(_id in cls.ids)
-            while _id in cls.ids:
-                _id: int = randint(MIN_ID, MAX_ID)
-        cls.ids.add(_id)
-        return _id
+        id_: int = randint(MIN_ID, MAX_ID)
+        if id_ in cls.ids:
+            while id_ in cls.ids:
+                id_: int = randint(MIN_ID, MAX_ID)
+        cls.ids.add(id_)
+        return id_
 
     @classmethod
-    def remove(cls, _id: int) -> None:
+    def remove(cls, id_: int) -> None:
         """
         Remove a company ID from the set of unique IDs.
 
         Args:
-            _id (int): The company ID to remove.
+            id_ (int): The company ID to remove.
         """
-        cls.ids.discard(_id)
+        cls.ids.discard(id_)
+
+    @classmethod
+    def populate_ids_cache_map(cls, key: str | int, value: str | int) -> None:
+        """Populate the IDs cache map with the given key-value pair."""
+        cls._company_id_to_elasticsearch_id_cache[key] = value
+        cls._company_id_to_elasticsearch_id_cache[value] = key
+
+    @classmethod
+    def get_ids_cache_map(cls) -> dict[str | int, str | int]:
+        """Get the IDs cache map."""
+        return cls._company_id_to_elasticsearch_id_cache
 
 
 CompanyUniqueIds.get_initial_ids()
