@@ -72,5 +72,14 @@ class CompanyUniqueIds:
         """Get the IDs cache map."""
         return cls._company_id_to_elasticsearch_id_cache
 
+    @classmethod
+    def remove_ids_from_cache_map(cls, id: int | str):
+        corresponding_id: int | str = cls._company_id_to_elasticsearch_id_cache[id]
+        if isinstance(id, int):
+            cls.remove(id)
+        else:
+            cls.remove(corresponding_id)
+        del cls._company_id_to_elasticsearch_id_cache[id]
+        del cls._company_id_to_elasticsearch_id_cache[corresponding_id]
 
 CompanyUniqueIds.get_initial_ids()
