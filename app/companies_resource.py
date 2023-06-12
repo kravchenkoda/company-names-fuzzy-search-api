@@ -3,6 +3,7 @@ from typing import Mapping, Any, Iterable, Generator
 import elasticsearch
 import elasticsearch.helpers
 
+from bulk_response import BulkResponse
 from company import Company
 from company_unique_ids import CompanyUniqueIds
 from es import es_client
@@ -19,7 +20,7 @@ class CompaniesResource:
     """
 
     @property
-    def companies_count(self):
+    def companies_count(self) -> str:
         """
         Get the count of documents in the companies Elasticsearch index.
 
@@ -46,28 +47,28 @@ class CompaniesResource:
         }
         es_client.index(index=COMPANY_INDEX_NAME, document=document)
 
-    def delete_company(self, id_: int) -> None:
+    def delete_company(self, id: int) -> None:
         """
         Delete a company document from Elasticsearch.
 
         Args:
-            id_ (str): The ID of the company to delete.
+            id (int): The ID of the company to delete.
         """
-        es_id = Company(id_).elasticsearch_id
+        es_id: str = Company(id).elasticsearch_id
         es_client.delete(index=COMPANY_INDEX_NAME, id=es_id)
-        CompanyUniqueIds.remove(id_)
+        CompanyUniqueIds.remove(id)
 
-    def get_company_by_id(self, id_: int) -> Company:
+    def get_company_by_id(self, id: int) -> Company:
         """
         Get a company object from Elasticsearch by ID.
 
         Args:
-            id_ (str): The ID of the company document to retrieve.
+            id (str): The ID of the company document to retrieve.
 
         Returns:
             Company: The retrieved company object.
         """
-        es_id = Company(id_).elasticsearch_id
+        es_id: str = Company(id).elasticsearch_id
         response = es_client.get(index=COMPANY_INDEX_NAME, id=es_id)
         source_obj = response['_source']
 
@@ -80,9 +81,7 @@ class CompaniesResource:
             domain=source_obj['domain']
         )
 
-    def bulk_add(
-            self, companies: Iterable[Company]
-    ) -> tuple[int, list[Mapping[str, Any]]]:
+    def bulk_add(self, companies: Iterable[Company]) -> BulkResponse:
         """
         Bulk add multiple documents to Elasticsearch companies index.
 
@@ -90,12 +89,13 @@ class CompaniesResource:
             companies (Iterable[Company]): The companies to add.
 
         Returns:
-            tuple[int, list[Mapping[str, Any]]]: A tuple containing the number of
-            successful requests and a list of errors with information about requests.
+            BulkResponse object containing a number of successful operations and
+            error messages with corresponding company IDs if any.
         """
+        operation_type = 'index'
         actions: Generator[dict[str, Any], None, None] = (
             {
-                '_op_type': 'index',
+                '_op_type': operation_type,
                 '_index': COMPANY_INDEX_NAME,
                 '_source': {
                     'id': company.id,
@@ -108,11 +108,16 @@ class CompaniesResource:
             }
             for company in companies
         )
-        return elasticsearch.helpers.bulk(es_client, actions, raise_on_error=False)
 
-    def bulk_update(
-            self, companies: Iterable[Company]
-    ) -> tuple[int, list[Mapping[str, Any]]]:
+        result: tuple[int, list[Mapping[str, Any]]] = elasticsearch.helpers.bulk(
+            es_client,
+            actions,
+            raise_on_error=False
+        )
+
+        return BulkResponse(result, operation_type)
+
+    def bulk_update(self, companies: Iterable[Company]) -> BulkResponse:
         """
         Bulk update multiple documents from Elasticsearch companies index.
 
@@ -120,37 +125,69 @@ class CompaniesResource:
             companies (Iterable[Company]): company objects to be updated.
 
         Returns:
-            tuple[int, list[Mapping[str, Any]]]: A tuple containing the number of
-            successful requests and a list of errors with information about requests.
+            BulkResponse object containing a number of successful operations and
+            error messages with corresponding company IDs if any.
         """
-        actions: Generator[Mapping[str, Any], None, None] = (
-            {
-                '_op_type': 'update',
-                '_index': COMPANY_INDEX_NAME,
-                '_id': company.elasticsearch_id,
-                '_source': company.as_es_document_for_bulk_update()
-            }
-            for company in companies
-        )
-        return elasticsearch.helpers.bulk(es_client, actions, raise_on_error=False)
+        operation_type = 'update'
+        internal_errors: set[tuple[int, str]] = set()
 
-    def bulk_delete(self, ids: Iterable[str]) -> tuple[int, list[Mapping[str, Any]]]:
+        def actions(companies):
+            for company in companies:
+                try:
+                    yield {
+                        '_op_type': operation_type,
+                        '_index': COMPANY_INDEX_NAME,
+                        '_id': company.elasticsearch_id,
+                        '_source': company.as_es_document_for_bulk_update()
+                    }
+                except elasticsearch.NotFoundError as e:
+                    internal_errors.add((company.id, str(e)))
+
+        action_generator: Generator[Mapping[str, Any], None, None] = actions(companies)
+
+        result: tuple[int, list[Mapping[str, Any]]] = elasticsearch.helpers.bulk(
+            es_client,
+            action_generator,
+            raise_on_error=False
+        )
+
+        return BulkResponse(result, operation_type, internal_errors)
+
+    def bulk_delete(self, companies: Iterable[Company]) -> BulkResponse:
         """
         Bulk delete multiple documents from Elasticsearch companies index.
 
         Args:
-            ids (Iterable[str]): The IDs of the documents to delete.
+            companies (Iterable[Company]): company objects to be deleted.
 
         Returns:
-            tuple[int, list[Mapping[str, Any]]]: A tuple containing the number of
-            successful requests and a list of errors with information about requests.
+            BulkResponse object containing a number of successful operations and
+            error messages with corresponding company IDs if any.
         """
-        actions: Generator[Mapping[str, Any], None, None] = (
-            {
-                '_op_type': 'delete',
-                '_index': COMPANY_INDEX_NAME,
-                '_id': id_,
-            }
-            for id_ in ids
+        operation_type = 'delete'
+        internal_errors: set[tuple[int, str]] = set()
+
+        def actions(companies):
+            for company in companies:
+                try:
+                    yield {
+                        '_op_type': operation_type,
+                        '_index': COMPANY_INDEX_NAME,
+                        '_id': company.elasticsearch_id,
+                    }
+                except elasticsearch.NotFoundError as e:
+                    internal_errors.add((company.id, str(e)))
+
+        action_generator: Generator[Mapping[str, str], None, None] = actions(companies)
+
+        result: tuple[int, list[Mapping[str, Any]]] = elasticsearch.helpers.bulk(
+            es_client,
+            action_generator,
+            raise_on_error=False
         )
-        return elasticsearch.helpers.bulk(es_client, actions, raise_on_error=False)
+        bulk_response = BulkResponse(result, operation_type, internal_errors)
+
+        for action in action_generator:
+            CompanyUniqueIds.remove_ids_from_cache_map(action['_id'])
+
+        return bulk_response
