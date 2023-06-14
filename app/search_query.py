@@ -1,7 +1,5 @@
 from typing import Mapping, Any, Iterable
 
-import elasticsearch
-
 from es import es_client
 
 
@@ -87,7 +85,8 @@ class SearchQuery:
         Build the full search query combining multiple queries and filters.
 
         Args:
-            queries (Iterable[Mapping[str, Any]]): List of queries to include in the must clause.
+            queries (Iterable[Mapping[str, Any]]): List of queries to include in the
+                                                                        must clause.
             filters (Iterable[Mapping[str, Any]], optional): List of filters to
             include in the filter clause. Defaults to None.
 
@@ -95,11 +94,11 @@ class SearchQuery:
             Mapping[str, Any]: The complete search query.
         """
         query: Mapping[str, Any] = {
-                "bool": {
-                    "must": queries,
-                    "filter": filters or []
-                }
+            "bool": {
+                "must": queries,
+                "filter": filters or []
             }
+        }
         return query
 
     def perform_search(self, query: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -115,11 +114,9 @@ class SearchQuery:
         response = es_client.search(
             index=self.index,
             query=query,
-            size=self.max_num_results
+            size=self.max_num_results,
+            request_cache=True
         )['hits']['hits']
-
-        if not response:
-            raise elasticsearch.NotFoundError
 
         return response
 
@@ -138,3 +135,46 @@ class SearchQuery:
             self.build_query([query])
         )
         return response[0]['_source']
+
+    def build_multisearch_body(self, *queries: Mapping[str, Any]):
+        """
+        Build the multi-search body for executing multiple search queries.
+
+        Args:
+            queries: search queries, each query is a mapping
+                    containing the desired search parameters.
+
+        Yields:
+            Mapping[str, Any]: The multi-search body, where each yielded item
+                        represents either a query metadata or a query itself.
+        """
+        for query in queries:
+            yield {'request_cache': True}
+            yield {'query': query, 'size': self.max_num_results}
+
+    def perform_multisearch(
+            self,
+            multisearch_body: Iterable[Mapping[str, Any]]
+    ) -> list[Mapping[str, Any]]:
+        """
+        Perform a multi-search operation using the provided multi-search body.
+
+        Args:
+            multisearch_body: An iterable of multi-search queries.
+
+        Yields:
+            list[Mapping[str, Any]]: A list of results for each individual
+            search request.
+        """
+        response: Mapping[str, Any] = es_client.msearch(
+            searches=multisearch_body,
+            index='companies'
+        )
+        for result in response['responses']:
+            results_per_request = []
+            current_num_of_results = 0
+            for hit in result['hits']['hits']:
+                if current_num_of_results < self.max_num_results:
+                    results_per_request.append(hit['_source'])
+                    current_num_of_results += 1
+            yield results_per_request
