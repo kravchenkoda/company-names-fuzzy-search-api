@@ -47,16 +47,16 @@ class CompaniesResource:
         }
         es_client.index(index=COMPANY_INDEX_NAME, document=document)
 
-    def delete_company(self, id: int) -> None:
+    def delete_company(self, company: Company) -> None:
         """
         Delete a company document from Elasticsearch.
 
         Args:
-            id (int): The ID of the company to delete.
+            company (Company): company object to delete.
         """
-        es_id: str = Company(id).elasticsearch_id
-        es_client.delete(index=COMPANY_INDEX_NAME, id=es_id)
-        CompanyUniqueIds.remove(id)
+        es_client.delete(index=COMPANY_INDEX_NAME, id=company.elasticsearch_id)
+        CompanyUniqueIds.remove(company.id)
+        CompanyUniqueIds.remove_ids_from_cache_map(company.id)
 
     def get_company_by_id(self, id: int) -> Company:
         """
