@@ -17,6 +17,7 @@ class Company:
     Attributes:
         id (int): The company's ID.
         name (str): The company's name (optional).
+        country (str): The company's country (optional).
         locality (str | None): The company's locality (optional).
         industry (str | None): The company's industry (optional).
         linkedin_url (str | None): The company's LinkedIn URL (optional).
@@ -32,6 +33,7 @@ class Company:
     """
     id: int = field(default_factory=CompanyUniqueIds.generate)
     name: str | None = None
+    country: str | None = None
     locality: str | None = None
     industry: str | None = None
     linkedin_url: str | None = None

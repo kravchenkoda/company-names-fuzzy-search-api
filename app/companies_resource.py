@@ -39,7 +39,9 @@ class CompaniesResource:
             company (Company): The company object to add.
         """
         document: Mapping[str, Any] = {
+            'id': company.id,
             'name': company.name,
+            'country': company.country,
             'industry': company.industry,
             'locality': company.locality,
             'linkedin_url': company.linkedin_url,
@@ -75,6 +77,7 @@ class CompaniesResource:
         return Company(
             id=source_obj['id'],
             name=source_obj['name'],
+            country=source_obj['country'],
             industry=source_obj['industry'],
             locality=source_obj['locality'],
             linkedin_url=source_obj['linkedin_url'],
@@ -100,6 +103,7 @@ class CompaniesResource:
                 '_source': {
                     'id': company.id,
                     'name': company.name,
+                    'country': company.country,
                     'locality': company.locality,
                     'industry': company.industry,
                     'linkedin_url': company.linkedin_url,
