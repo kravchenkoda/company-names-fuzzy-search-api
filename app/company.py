@@ -4,7 +4,7 @@ from typing import Iterable, Mapping, Any
 import elasticsearch
 from elastic_transport import ApiResponseMeta
 
-from search_query import SearchQuery
+import search_query as s
 from company_unique_ids import CompanyUniqueIds
 from es import es_client
 
@@ -53,7 +53,7 @@ class Company:
         try:
             return CompanyUniqueIds.get_ids_cache_map()[self.id]
         except KeyError:
-            search = SearchQuery('companies')
+            search = s.SearchQuery('companies')
             query: Mapping[str, Any] = search.exact_match('id', self.id)
             response: list[Mapping[str, Any]] = search.perform_search(
                 search.build_query([query])
