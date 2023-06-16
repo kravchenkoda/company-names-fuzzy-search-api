@@ -1,4 +1,4 @@
-from typing import Mapping, Any, Iterable
+from typing import Mapping, Any, Iterable, Generator
 
 from es import es_client
 
@@ -109,7 +109,7 @@ class SearchQuery:
             query (Mapping[str, Any]): The Elasticsearch query to execute.
 
         Returns:
-            Mapping[str, Any]: search results.
+            list[Mapping[str, Any]]: search results.
         """
         response = es_client.search(
             index=self.index,
@@ -134,9 +134,12 @@ class SearchQuery:
         response: list[Mapping[str, Any]] = self.perform_search(
             self.build_query([query])
         )
-        return response[0]['_source']
+        return response[0]
 
-    def build_multisearch_body(self, *queries: Mapping[str, Any]):
+    def build_multisearch_body(
+            self,
+            *queries: Mapping[str, Any]
+    ) -> Generator[Mapping[str, Any], None, None]:
         """
         Build the multi-search body for executing multiple search queries.
 
@@ -155,7 +158,7 @@ class SearchQuery:
     def perform_multisearch(
             self,
             multisearch_body: Iterable[Mapping[str, Any]]
-    ) -> list[Mapping[str, Any]]:
+    ) -> Generator[list[Mapping[str, Any]], None, None]:
         """
         Perform a multi-search operation using the provided multi-search body.
 
@@ -175,6 +178,6 @@ class SearchQuery:
             current_num_of_results = 0
             for hit in result['hits']['hits']:
                 if current_num_of_results < self.max_num_results:
-                    results_per_request.append(hit['_source'])
+                    results_per_request.append(hit)
                     current_num_of_results += 1
             yield results_per_request
