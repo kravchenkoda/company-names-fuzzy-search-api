@@ -17,10 +17,28 @@ class CompaniesResource:
 
     This class provides methods to interact with an Elasticsearch index that stores information about companies.
     It allows adding, deleting, and retrieving company documents, as well as performing bulk operations.
-    """
 
+    Properties:
+        companies_count: number of documents the companies Elasticsearch index.
+
+    Methods:
+        companies_count() -> str:
+            Get the count of documents in the companies Elasticsearch index.
+        add_company(company: Company) -> None:
+            Add a company document to Elasticsearch.
+        delete_company(company: Company) -> None:
+            Delete a company document from Elasticsearch.
+        get_company_by_id(id: int) -> Company:
+            Get a company object from Elasticsearch by ID.
+        bulk_add(companies: Iterable[Company]) -> BulkResponse:
+            Bulk add multiple documents to Elasticsearch companies index.
+        bulk_update(companies: Iterable[Company]) -> BulkResponse:
+            Bulk update multiple documents from Elasticsearch companies index.
+        bulk_delete(companies: Iterable[Company]) -> BulkResponse:
+            Bulk delete multiple documents from Elasticsearch companies index.
+    """
     @property
-    def companies_count(self) -> str:
+    def companies_count(self) -> int:
         """
         Get the count of documents in the companies Elasticsearch index.
 
@@ -28,7 +46,7 @@ class CompaniesResource:
             str: The count of companies.
         """
         response = es_client.count(index=COMPANY_INDEX_NAME)
-        count: str = response['count']
+        count: str = int(response['count'])
         return count
 
     def add_company(self, company: Company) -> None:
