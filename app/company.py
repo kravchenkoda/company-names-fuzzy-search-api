@@ -71,18 +71,18 @@ class Company:
             CompanyUniqueIds.populate_ids_cache_map(self.id, elasticsearch_id)
             return elasticsearch_id
 
-    def update(self, *fields_to_values: Iterable[tuple[str, Any]]):
+    def update(self, fields_to_values: Iterable[tuple[str, Any]]):
         """
         Update the company's fields with new values.
 
         Args:
-            *fields_to_values (Iterable[tuple[str, Any]]): The fields and their
+            fields_to_values (Iterable[tuple[str, Any]]): The fields and their
             new values as tuples.
         """
         doc: Mapping[str, Any] = {
             field: value for field, value in fields_to_values
         }
-        es_client.update(id=self.id, doc=doc)
+        es_client.update(index='companies', id=self.elasticsearch_id, doc=doc)
 
     def as_es_document_for_bulk_update(self) -> Mapping[str, Any]:
         """
