@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict, field
-from typing import Iterable, Mapping, Any
+from typing import Mapping, Any
 
 import elasticsearch
 from elastic_transport import ApiResponseMeta
@@ -28,8 +28,8 @@ class Company:
 
     Methods:
         update: Update the company's fields with new values.
-        as_es_document_for_bulk_update: Get the company as a source object for
-        bulk update in Elasticsearch.
+        as_es_document_for_partial_update: Get the company as a source object for
+        partial update operations in Elasticsearch.
     """
     id: int = field(default_factory=CompanyUniqueIds.generate)
     name: str | None = None
@@ -42,7 +42,8 @@ class Company:
     @property
     def elasticsearch_id(self) -> str:
         """
-        Get the Elasticsearch ID associated with the company based on its ID.
+        Get the Elasticsearch company index document ID associated with the company
+        based on its ID field.
 
         Returns:
             str: The Elasticsearch ID of the company.
@@ -71,31 +72,25 @@ class Company:
             CompanyUniqueIds.populate_ids_cache_map(self.id, elasticsearch_id)
             return elasticsearch_id
 
-    def update(self, fields_to_values: Iterable[tuple[str, Any]]):
+    def update(self) -> None:
         """
-        Update the company's fields with new values.
-
-        Args:
-            fields_to_values (Iterable[tuple[str, Any]]): The fields and their
-            new values as tuples.
+        Update the company's Elasticsearch document with new values.
         """
-        doc: Mapping[str, Any] = {
-            field: value for field, value in fields_to_values
-        }
+        doc: Mapping[str, Any] = self.as_es_document_for_partial_update()
         es_client.update(index='companies', id=self.elasticsearch_id, doc=doc)
 
-    def as_es_document_for_bulk_update(self) -> Mapping[str, Any]:
+    def as_es_document_for_partial_update(self) -> Mapping[str, Any]:
         """
-        Get the company as a source object for bulk update in Elasticsearch.
+        Return the Elasticsearch company index source object for partial update.
+        Without the 'id' field and those fields that have values of null.
 
         Returns:
-            dict: The company represented as a source object for bulk update.
+            Mapping[str, Any]: Elasticsearch company index source object
+            for partial update.
         """
         as_dict: Mapping[str, Any] = asdict(self)
         as_dict_without_nulls: Mapping[str, Any] = {
-            field: value for field, value in as_dict.items() if field is not None
+            field: value for field, value in as_dict.items()
+            if value is not None and field != 'id'
         }
-        return {
-            'doc':
-                as_dict_without_nulls
-        }
+        return as_dict_without_nulls
