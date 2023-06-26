@@ -49,7 +49,8 @@ class CompaniesResource:
         count = int(response['count'])
         return count
 
-    def add_company(self, company: Company) -> None:
+    @staticmethod
+    def add_company(company: Company) -> None:
         """
         Add a company document to Elasticsearch.
 
@@ -67,7 +68,8 @@ class CompaniesResource:
         }
         es_client.index(index=COMPANY_INDEX_NAME, document=document)
 
-    def delete_company(self, company: Company) -> None:
+    @staticmethod
+    def delete_company(company: Company) -> None:
         """
         Delete a company document from Elasticsearch.
 
@@ -78,7 +80,8 @@ class CompaniesResource:
         CompanyUniqueIds.remove(company.id)
         CompanyUniqueIds.remove_ids_from_cache_map(company.id)
 
-    def get_company_by_id(self, id: int) -> Company:
+    @staticmethod
+    def get_company_by_id(id: int) -> Company:
         """
         Get a company object from Elasticsearch by ID.
 
@@ -102,7 +105,8 @@ class CompaniesResource:
             domain=source_obj['domain']
         )
 
-    def bulk_add(self, companies: Iterable[Company]) -> BulkResponse:
+    @staticmethod
+    def bulk_add(companies: Iterable[Company]) -> BulkResponse:
         """
         Bulk add multiple documents to Elasticsearch companies index.
 
@@ -179,7 +183,8 @@ class CompaniesResource:
 
         return BulkResponse(result, operation_type, internal_errors)
 
-    def bulk_delete(self, companies: Iterable[Company]) -> BulkResponse:
+    @staticmethod
+    def bulk_delete(companies: Iterable[Company]) -> BulkResponse:
         """
         Bulk delete multiple documents from Elasticsearch companies index.
 
