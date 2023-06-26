@@ -46,7 +46,7 @@ class CompaniesResource:
             str: The count of companies.
         """
         response = es_client.count(index=COMPANY_INDEX_NAME)
-        count: str = int(response['count'])
+        count = int(response['count'])
         return count
 
     def add_company(self, company: Company) -> None:
@@ -160,7 +160,11 @@ class CompaniesResource:
                         '_op_type': operation_type,
                         '_index': COMPANY_INDEX_NAME,
                         '_id': company.elasticsearch_id,
-                        '_source': company.as_es_document_for_bulk_update()
+                        '_source': {
+                            'doc': {
+                                company.as_es_document_for_partial_update()
+                            }
+                        }
                     }
                 except elasticsearch.NotFoundError as e:
                     internal_errors.add((company.id, str(e)))
