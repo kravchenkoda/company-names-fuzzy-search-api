@@ -143,7 +143,8 @@ class CompaniesResource:
 
         return BulkResponse(result, operation_type)
 
-    def bulk_update(self, companies: Iterable[Company]) -> BulkResponse:
+    @staticmethod
+    def bulk_update(companies: Iterable[Company]) -> BulkResponse:
         """
         Bulk update multiple documents from Elasticsearch companies index.
 
@@ -165,9 +166,7 @@ class CompaniesResource:
                         '_index': COMPANY_INDEX_NAME,
                         '_id': company.elasticsearch_id,
                         '_source': {
-                            'doc': {
-                                company.as_es_document_for_partial_update()
-                            }
+                            'doc': company.as_es_document_for_partial_update()
                         }
                     }
                 except elasticsearch.NotFoundError as e:
