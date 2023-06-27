@@ -1,5 +1,8 @@
 from typing import Mapping, Any, Iterable, Generator
 
+from elastic_transport import ApiResponseMeta
+from elasticsearch import NotFoundError
+
 from es import es_client
 
 
@@ -129,12 +132,26 @@ class SearchQuery:
 
         Returns:
             Mapping[str, Any]: The search result for the specified company ID.
+
+        Raises:
+            elasticsearch.NotFoundError: if the document with the given id field
+            does not exist.
         """
         query: Mapping[str, Any] = self.exact_match('id', id_)
         response: list[Mapping[str, Any]] = self.perform_search(
             self.build_query([query])
         )
-        return response[0]
+        try:
+            result = response[0]
+        except IndexError:
+            raise NotFoundError(
+                meta=ApiResponseMeta(
+                    status=404, headers={}, http_version='1.1',
+                    duration=0.0, node=None),
+                body='',
+                message=f'document with company id {id_} '
+                        f'was not found in Elasticsearch {self.index} index.')
+        return result
 
     def build_multisearch_body(
             self,
