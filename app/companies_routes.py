@@ -1,9 +1,10 @@
-from typing import Mapping, Any
+from typing import Mapping, Any, Generator
 
 from flask_restx import Resource, Namespace, reqparse
-from flask import make_response
+from flask import make_response, Response
+from werkzeug.exceptions import BadRequest
 
-from api_models import company_model
+from api_models import company_model_no_id, company_model
 from company import Company
 from search_query import SearchQuery
 from companies_search_result import CompaniesSearchResult
@@ -20,12 +21,44 @@ parser.add_argument('linkedin_url', location='args')
 parser.add_argument('domain', location='args')
 
 
+def validate_bulk_non_empty_body(func):
+    """Decorator to validate that the request body is not empty."""
+    def wrapper(*args, **kwargs):
+        payload = ns.payload
+        if len(payload) == 0 or not payload[0].keys():
+            raise BadRequest('no body provided')
+        else:
+            return func(*args, **kwargs)
+    return wrapper
+
+
+def bulk_ops_company_objects_generator(
+        payload: list[Mapping[str, Any]]
+) -> Generator[Company, None, None]:
+    """Generator function to create Company objects from a payload."""
+    for company_object in payload:
+        company = Company()
+        for key, value in company_object.items():
+            setattr(company, key, value)
+        yield company
+
+
+def get_company_from_payload(payload: list[Mapping[str, Any]]) -> Company:
+    """Create a single Company object from the payload."""
+    company = Company()
+    [
+        setattr(company, key, value)
+        for key, value in payload[0].items()
+    ]
+    return company
+
+
 @ns.route('/companies')
 class CompaniesResourceRoot(Resource):
     @ns.doc(parser=parser)
     @ns.marshal_list_with(company_model)
     def get(self):
-        args: dict[str, Any] = parser.parse_args()
+        args: Mapping[str, Any] = parser.parse_args()
 
         search = SearchQuery('companies')
         query_components = []
@@ -45,36 +78,49 @@ class CompaniesResourceRoot(Resource):
         company_objects = CompaniesSearchResult.hits_to_objects(search_results)
         return company_objects, 200
 
-    @ns.expect([company_model], validate=True)
+    @ns.expect([company_model_no_id], validate=True)
+    @validate_bulk_non_empty_body
     def post(self):
-        payload = ns.payload
+        payload: list[Mapping[str, Any]] = ns.payload
         amount_of_companies = len(payload)
 
-        response = make_response()
+        response: Response = make_response()
         response.status_code = 201
 
         if amount_of_companies == 1:
-            company_to_add = Company()
-            [setattr(company_to_add, key, value) for key, value in payload[0].items()]
+            company_to_add: Company = get_company_from_payload(payload)
             CompaniesResource().add_company(company_to_add)
             response.headers['Location'] = f'/api/companies/{company_to_add.id}'
         else:
-            def payload_generator():
-                for company_object in payload:
-                    for key, value in company_object.items():
-                        company_to_add = Company()
-                        setattr(company_to_add, key, value)
-                        yield company_to_add
-            CompaniesResource().bulk_add(payload_generator())
+            companies: Generator[Company, None, None] = bulk_ops_company_objects_generator(
+                payload
+            )
+            CompaniesResource().bulk_add(companies)
         return response
 
+    @ns.expect([company_model], validate=True)
+    @validate_bulk_non_empty_body
     def patch(self):
-        pass
+        payload: list[Mapping[str, Any]] = ns.payload
+        amount_of_companies = len(payload)
+
+        response: Response = make_response()
+        response.status_code = 200
+
+        if amount_of_companies == 1:
+            company_to_update: Company = get_company_from_payload(payload)
+            company_to_update.update()
+            response.headers['Location'] = f'/api/companies/{company_to_update.id}'
+        else:
+            companies: Generator[Company, None, None] = bulk_ops_company_objects_generator(
+                payload
+            )
+            CompaniesResource.bulk_update(companies)
+        return response
 
 
 @ns.route('/companies/<int:id>')
 class CompanyDocument(Resource):
-
     @ns.marshal_with(company_model)
     def get(self, id):
         search_res: Mapping[str, Any] = SearchQuery(
@@ -97,7 +143,6 @@ class CompanyDocument(Resource):
         to_remove = Company(id)
         CompaniesResource().delete_company(to_remove)
         return {}, 204
-
 
 
 @ns.route('/companies/multi-search')
