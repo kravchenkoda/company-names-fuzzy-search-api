@@ -23,12 +23,14 @@ parser.add_argument('domain', location='args')
 
 def validate_bulk_non_empty_body(func):
     """Decorator to validate that the request body is not empty."""
+
     def wrapper(*args, **kwargs):
         payload = ns.payload
         if len(payload) == 0 or not payload[0].keys():
             raise BadRequest('no body provided')
         else:
             return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -37,20 +39,45 @@ def bulk_ops_company_objects_generator(
 ) -> Generator[Company, None, None]:
     """Generator function to create Company objects from a payload."""
     for company_object in payload:
-        company = Company()
-        for key, value in company_object.items():
-            setattr(company, key, value)
-        yield company
+        yield Company(**company_object)
+
+
+def build_query_from_request(request_data: Mapping[str, Any], search: SearchQuery):
+    """Build a search query from the payload company object"""
+
+    query_components = []
+
+    for field, value in request_data.items():
+        if value:
+            if field == 'linkedin_url' or field == 'domain':
+                query_components.append(
+                    search.exact_match(field, value)
+                )
+            query_components.append(
+                search.fuzzy_match(field, value)
+            )
+    single_query: Mapping[str, Any] = search.build_query(query_components)
+    return single_query
+
+
+def multisearch_body_geneartor(
+        payload: list[Mapping[str, Any]],
+        search: SearchQuery
+) -> Generator[Mapping[str, Any], None, None]:
+    """Generator function to create multisearch body from the payload"""
+    msearch_queries: list[Mapping[str, Any]] = [
+        build_query_from_request(search_object, search)
+        for search_object in payload
+    ]
+    multisearch_body: Generator[Mapping[str, Any], None, None] = \
+        search.build_multisearch_body(msearch_queries)
+
+    return multisearch_body
 
 
 def get_company_from_payload(payload: list[Mapping[str, Any]]) -> Company:
     """Create a single Company object from the payload."""
-    company = Company()
-    [
-        setattr(company, key, value)
-        for key, value in payload[0].items()
-    ]
-    return company
+    return Company(**payload[0])
 
 
 @ns.route('/companies')
@@ -61,19 +88,8 @@ class CompaniesResourceRoot(Resource):
         args: Mapping[str, Any] = parser.parse_args()
 
         search = SearchQuery('companies')
-        query_components = []
+        query: Mapping[str, Any] = build_query_from_request(args, search)
 
-        for field, value in args.items():
-            if value:
-                if field == 'linkedin_url' or field == 'domain':
-                    query_components.append(
-                        search.exact_match(field, value)
-                    )
-                else:
-                    query_components.append(
-                        search.fuzzy_match(field, value)
-                    )
-        query = search.build_query(query_components)
         search_results = search.perform_search(query)
         company_objects = CompaniesSearchResult.hits_to_objects(search_results)
         return company_objects, 200
@@ -147,8 +163,20 @@ class CompanyDocument(Resource):
 
 @ns.route('/companies/multi-search')
 class CompanyMultisearch(Resource):
+    @ns.expect([[company_model_no_id]], validate=True)
+    @ns.marshal_list_with(company_model)
     def post(self):
-        pass
+        payload: list[Mapping[str, Any]] = ns.payload
+        search = SearchQuery('companies')
+        multisearch_body = multisearch_body_geneartor(payload, search)
+
+        multisearch_result: Generator[list[Mapping[str, Any]], None, None] = \
+            search.perform_multisearch(multisearch_body)
+
+        response: list[list[Company]] = list(map(
+            CompaniesSearchResult.hits_to_objects, multisearch_result)
+        )
+        return response
 
 
 @ns.route('/companies/bulk-delete')
