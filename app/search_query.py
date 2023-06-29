@@ -155,8 +155,8 @@ class SearchQuery:
 
     def build_multisearch_body(
             self,
-            *queries: Mapping[str, Any]
-    ) -> Generator[Mapping[str, Any], None, None]:
+            queries: Iterable[Mapping[str, Any]]
+    ) -> list[Mapping[str, Any]]:
         """
         Build the multi-search body for executing multiple search queries.
 
@@ -164,13 +164,15 @@ class SearchQuery:
             queries: search queries, each query is a mapping
                     containing the desired search parameters.
 
-        Yields:
-            Mapping[str, Any]: The multi-search body, where each yielded item
-                        represents either a query metadata or a query itself.
+        Returns:
+            list[Mapping[str, Any]]: The multi-search body.
         """
+        msearch_query = []
         for query in queries:
-            yield {'request_cache': True}
-            yield {'query': query, 'size': self.max_num_results}
+            req_head = {'request_cache': True}
+            req_body = {'query': query, 'size': self.max_num_results}
+            msearch_query.extend([req_head, req_body])
+        return msearch_query
 
     def perform_multisearch(
             self,
