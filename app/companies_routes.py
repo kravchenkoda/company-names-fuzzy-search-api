@@ -4,7 +4,7 @@ from flask_restx import Resource, Namespace, reqparse
 from flask import make_response, Response
 from werkzeug.exceptions import BadRequest
 
-from api_models import company_model_no_id, company_model
+from api_models import company_model_no_id, company_model, multisearch_response_model
 from company import Company
 from search_query import SearchQuery
 from companies_search_result import CompaniesSearchResult
@@ -42,34 +42,53 @@ def bulk_ops_company_objects_generator(
         yield Company(**company_object)
 
 
-def build_query_from_request(request_data: Mapping[str, Any], search: SearchQuery):
-    """Build a search query from the payload company object"""
+def build_query_from_request(
+        request_data: Mapping[str, Any],
+        search: SearchQuery
+) -> Mapping[str, Any]:
+    """
+    Return a search query from a given request data (payload or query params).
 
+    Args:
+        request_data (Mapping[str, Any]): data parsed from the request.
+        search (SearchQuery): The SearchQuery instance for building queries.
+    """
     query_components = []
+    filters = []
 
     for field, value in request_data.items():
         if value:
-            if field == 'linkedin_url' or field == 'domain':
+            if field == 'name' or field == 'locality':
                 query_components.append(
-                    search.exact_match(field, value)
+                    search.fuzzy_match(field, value.lower())
                 )
-            query_components.append(
-                search.fuzzy_match(field, value)
-            )
-    single_query: Mapping[str, Any] = search.build_query(query_components)
-    return single_query
+            else:
+                filters.append(
+                    search.filter(field, value.lower())
+                )
+    search_query: Mapping[str, Any] = search.build_query(query_components, filters)
+    return search_query
 
 
-def multisearch_body_geneartor(
+def get_miltisearch_body_from_payload(
         payload: list[Mapping[str, Any]],
         search: SearchQuery
-) -> Generator[Mapping[str, Any], None, None]:
-    """Generator function to create multisearch body from the payload"""
+) -> list[Mapping[str, Any]]:
+    """
+    Return a multisearch body from the given payload.
+
+    Args:
+        payload (list[Mapping[str, Any]]): The payload containing search query data.
+        search (SearchQuery): The SearchQuery instance for building queries.
+
+    Returns:
+        list[Mapping[str, Any]]: The multisearch body generated from the payload.
+    """
     msearch_queries: list[Mapping[str, Any]] = [
         build_query_from_request(search_object, search)
         for search_object in payload
     ]
-    multisearch_body: Generator[Mapping[str, Any], None, None] = \
+    multisearch_body: list[Mapping[str, Any]] = \
         search.build_multisearch_body(msearch_queries)
 
     return multisearch_body
@@ -163,20 +182,28 @@ class CompanyDocument(Resource):
 
 @ns.route('/companies/multi-search')
 class CompanyMultisearch(Resource):
-    @ns.expect([[company_model_no_id]], validate=True)
-    @ns.marshal_list_with(company_model)
+    @ns.expect([company_model_no_id], validate=True)
+    @ns.marshal_with(multisearch_response_model)
     def post(self):
         payload: list[Mapping[str, Any]] = ns.payload
         search = SearchQuery('companies')
-        multisearch_body = multisearch_body_geneartor(payload, search)
 
+        multisearch_body: list[Mapping[str, Any]] = get_miltisearch_body_from_payload(
+            payload, search
+        )
         multisearch_result: Generator[list[Mapping[str, Any]], None, None] = \
             search.perform_multisearch(multisearch_body)
 
         response: list[list[Company]] = list(map(
             CompaniesSearchResult.hits_to_objects, multisearch_result)
         )
-        return response
+        result = {'data': []}
+
+        for req, resp in zip(payload, response):
+            element = {'search_request': req, 'search_results': resp}
+            result['data'].append(element)
+
+        return result
 
 
 @ns.route('/companies/bulk-delete')
