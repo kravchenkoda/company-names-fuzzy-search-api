@@ -2,13 +2,13 @@ from typing import Mapping, Any, Generator
 
 from flask_restx import Resource, Namespace, reqparse
 from flask import make_response, Response
-from werkzeug.exceptions import BadRequest
 
 from api_models import company_model_no_id, company_model, multisearch_response_model
 from company import Company
 from search_query import SearchQuery
 from companies_search_result import CompaniesSearchResult
 from companies_resource import CompaniesResource
+from company_request_handler import CompanyRequestHandler
 
 ns = Namespace('api')
 
@@ -21,84 +21,6 @@ parser.add_argument('linkedin_url', location='args')
 parser.add_argument('domain', location='args')
 
 
-def validate_bulk_non_empty_body(func):
-    """Decorator to validate that the request body is not empty."""
-
-    def wrapper(*args, **kwargs):
-        payload = ns.payload
-        if len(payload) == 0 or not payload[0].keys():
-            raise BadRequest('no body provided')
-        else:
-            return func(*args, **kwargs)
-
-    return wrapper
-
-
-def bulk_ops_company_objects_generator(
-        payload: list[Mapping[str, Any]]
-) -> Generator[Company, None, None]:
-    """Generator function to create Company objects from a payload."""
-    for company_object in payload:
-        yield Company(**company_object)
-
-
-def build_query_from_request(
-        request_data: Mapping[str, Any],
-        search: SearchQuery
-) -> Mapping[str, Any]:
-    """
-    Return a search query from a given request data (payload or query params).
-
-    Args:
-        request_data (Mapping[str, Any]): data parsed from the request.
-        search (SearchQuery): The SearchQuery instance for building queries.
-    """
-    query_components = []
-    filters = []
-
-    for field, value in request_data.items():
-        if value:
-            if field == 'name' or field == 'locality':
-                query_components.append(
-                    search.fuzzy_match(field, value.lower())
-                )
-            else:
-                filters.append(
-                    search.filter(field, value.lower())
-                )
-    search_query: Mapping[str, Any] = search.build_query(query_components, filters)
-    return search_query
-
-
-def get_miltisearch_body_from_payload(
-        payload: list[Mapping[str, Any]],
-        search: SearchQuery
-) -> list[Mapping[str, Any]]:
-    """
-    Return a multisearch body from the given payload.
-
-    Args:
-        payload (list[Mapping[str, Any]]): The payload containing search query data.
-        search (SearchQuery): The SearchQuery instance for building queries.
-
-    Returns:
-        list[Mapping[str, Any]]: The multisearch body generated from the payload.
-    """
-    msearch_queries: list[Mapping[str, Any]] = [
-        build_query_from_request(search_object, search)
-        for search_object in payload
-    ]
-    multisearch_body: list[Mapping[str, Any]] = \
-        search.build_multisearch_body(msearch_queries)
-
-    return multisearch_body
-
-
-def get_company_from_payload(payload: list[Mapping[str, Any]]) -> Company:
-    """Create a single Company object from the payload."""
-    return Company(**payload[0])
-
-
 @ns.route('/companies')
 class CompaniesResourceRoot(Resource):
     @ns.doc(parser=parser)
@@ -106,51 +28,52 @@ class CompaniesResourceRoot(Resource):
     def get(self):
         args: Mapping[str, Any] = parser.parse_args()
 
+        request_handler = CompanyRequestHandler(args)
         search = SearchQuery('companies')
-        query: Mapping[str, Any] = build_query_from_request(args, search)
 
+        query: Mapping[str, Any] = request_handler.build_query_from_request(search)
         search_results = search.perform_search(query)
         company_objects = CompaniesSearchResult.hits_to_objects(search_results)
+
         return company_objects, 200
 
     @ns.expect([company_model_no_id], validate=True)
-    @validate_bulk_non_empty_body
     def post(self):
         payload: list[Mapping[str, Any]] = ns.payload
         amount_of_companies = len(payload)
 
         response: Response = make_response()
         response.status_code = 201
-
+        request_handler = CompanyRequestHandler(payload)
         if amount_of_companies == 1:
-            company_to_add: Company = get_company_from_payload(payload)
+            company_to_add: Company = request_handler.get_company_from_payload()
             CompaniesResource().add_company(company_to_add)
             response.headers['Location'] = f'/api/companies/{company_to_add.id}'
         else:
-            companies: Generator[Company, None, None] = bulk_ops_company_objects_generator(
-                payload
-            )
+            companies: Generator[Company, None, None] = \
+                request_handler.bulk_ops_company_objects_generator()
             CompaniesResource().bulk_add(companies)
         return response
 
+    @ns.doc('perform multisearch')
     @ns.expect([company_model], validate=True)
-    @validate_bulk_non_empty_body
     def patch(self):
         payload: list[Mapping[str, Any]] = ns.payload
         amount_of_companies = len(payload)
 
+        request_handler = CompanyRequestHandler(payload)
         response: Response = make_response()
         response.status_code = 200
 
         if amount_of_companies == 1:
-            company_to_update: Company = get_company_from_payload(payload)
+            company_to_update: Company = request_handler.get_company_from_payload()
             company_to_update.update()
             response.headers['Location'] = f'/api/companies/{company_to_update.id}'
         else:
-            companies: Generator[Company, None, None] = bulk_ops_company_objects_generator(
-                payload
-            )
+            companies: Generator[Company, None, None] = \
+                request_handler.bulk_ops_company_objects_generator()
             CompaniesResource.bulk_update(companies)
+
         return response
 
 
@@ -182,15 +105,17 @@ class CompanyDocument(Resource):
 
 @ns.route('/companies/multi-search')
 class CompanyMultisearch(Resource):
+
     @ns.expect([company_model_no_id], validate=True)
     @ns.marshal_with(multisearch_response_model)
     def post(self):
         payload: list[Mapping[str, Any]] = ns.payload
         search = SearchQuery('companies')
+        request_handler = CompanyRequestHandler(payload)
 
-        multisearch_body: list[Mapping[str, Any]] = get_miltisearch_body_from_payload(
-            payload, search
-        )
+        multisearch_body: list[Mapping[str, Any]] = \
+            request_handler.get_miltisearch_body_from_payload(search)
+
         multisearch_result: Generator[list[Mapping[str, Any]], None, None] = \
             search.perform_multisearch(multisearch_body)
 
