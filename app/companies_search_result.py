@@ -6,7 +6,7 @@ class CompaniesSearchResult:
     """Class for converting Elasticsearch search hits to Company objects."""
 
     @staticmethod
-    def hit_to_object(hit: Mapping[str, Any]):
+    def hit_to_object(hit: Mapping[str, Any]) -> Company:
         """
         Convert a single search hit to a Company object.
 
