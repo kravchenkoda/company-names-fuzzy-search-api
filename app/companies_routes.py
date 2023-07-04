@@ -3,7 +3,7 @@ from typing import Mapping, Any, Generator
 from flask_restx import Resource, Namespace, reqparse
 from flask import make_response, Response
 
-from api_models import company_model_no_id, company_model, multisearch_response_model
+from api_models import company_model_no_id, company_model, multisearch_response_model, bulk_delete_request_model
 from company import Company
 from search_query import SearchQuery
 from companies_search_result import CompaniesSearchResult
@@ -51,8 +51,8 @@ class CompaniesResourceRoot(Resource):
             response.headers['Location'] = f'/api/companies/{company_to_add.id}'
         else:
             companies: Generator[Company, None, None] = \
-                request_handler.bulk_ops_company_objects_generator()
-            CompaniesResource().bulk_add(companies)
+                request_handler.bulk_add_update_company_obj_generator()
+            CompaniesResource.bulk_add(companies)
         return response
 
     @ns.doc('perform multisearch')
@@ -71,7 +71,7 @@ class CompaniesResourceRoot(Resource):
             response.headers['Location'] = f'/api/companies/{company_to_update.id}'
         else:
             companies: Generator[Company, None, None] = \
-                request_handler.bulk_ops_company_objects_generator()
+                request_handler.bulk_add_update_company_obj_generator()
             CompaniesResource.bulk_update(companies)
 
         return response
@@ -133,5 +133,14 @@ class CompanyMultisearch(Resource):
 
 @ns.route('/companies/bulk-delete')
 class CompanyBulkDelete(Resource):
+
+    @ns.expect(bulk_delete_request_model, validate=True)
     def post(self):
-        pass
+        payload: list[int] = ns.payload
+        request_handler = CompanyRequestHandler(payload)
+
+        companies: Generator[Company, None, None] = request_handler.\
+            bulk_delete_company_obj_generator()
+
+        CompaniesResource.bulk_delete(companies)
+        return {}, 207

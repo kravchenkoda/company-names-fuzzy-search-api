@@ -16,19 +16,34 @@ class CompanyRequestHandler:
 
     def validate_bulk_non_empty_body(self) -> None:
         """
-        Validate the request data for bulk operations and non-empty body.
+        Validate the request data of bulk operations for a non-empty body.
 
         Raises:
             BadRequest: If the request data is empty or does not contain any keys.
         """
-        if isinstance(self.request_data, list):
-            if len(self.request_data) == 0 or not self.request_data[0].keys():
-                raise BadRequest('no body provided')
+        bad_request = BadRequest('no body provided')
+        req_data = self.request_data
 
-    def bulk_ops_company_objects_generator(self) -> Generator[Company, None, None]:
-        """Generator function to create Company objects from a payload."""
+        if isinstance(req_data, list):
+            if len(self.request_data) == 0 or not req_data[0].keys():
+                raise bad_request
+        if 'ids' in req_data.keys() and not req_data['ids']:
+            raise bad_request
+
+    def bulk_add_update_company_obj_generator(self) -> Generator[Company, None, None]:
+        """
+        Generator function to create Company objects from the bulk add or bulk update payload.
+        """
         for company_object in self.request_data:
             yield Company(**company_object)
+
+    def bulk_delete_company_obj_generator(self) -> Generator[Company, None, None]:
+        """
+        Generator function to create Company objects from the bulk delete payload.
+        """
+        ids: list[int] = self.request_data['ids']
+        for id in ids:
+            yield Company(id=id)
 
     def build_query_from_request(
             self, search: SearchQuery,
