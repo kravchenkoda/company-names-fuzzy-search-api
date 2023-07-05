@@ -170,7 +170,11 @@ class CompaniesResource:
                         }
                     }
                 except elasticsearch.NotFoundError as e:
-                    internal_errors.add((company.id, str(e)))
+                    err_msg = e.error
+                    internal_errors.add((company.id, err_msg))
+                except elasticsearch.BadRequestError as e:
+                    err_msg = e.info['error']['root_cause'][0]['reason']
+                    internal_errors.add((company.id, err_msg))
 
         action_generator: Generator[Mapping[str, Any], None, None] = actions(companies)
 
@@ -206,7 +210,11 @@ class CompaniesResource:
                         '_id': company.elasticsearch_id,
                     }
                 except elasticsearch.NotFoundError as e:
-                    internal_errors.add((company.id, str(e)))
+                    err_msg = e.error
+                    internal_errors.add((company.id, err_msg))
+                except elasticsearch.BadRequestError as e:
+                    err_msg = e.info['error']['root_cause'][0]['reason']
+                    internal_errors.add((company.id, err_msg))
 
         action_generator: Generator[Mapping[str, str], None, None] = actions(companies)
 
