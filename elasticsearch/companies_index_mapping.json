@@ -1,0 +1,245 @@
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "name_analyzer":{
+          "type": "custom",
+          "char_filter": "remove_special_chars",
+          "filter": [
+            "lowercase",
+            "multilang_stop",
+            "asciifolding_preserve_original",
+            "company_abbreviations"
+            ],
+          "tokenizer": "standard"
+        },
+        "locality_analyzer": {
+          "type": "custom",
+          "char_filter": [
+            "remove_special_chars"
+          ],
+          "filter": [
+            "lowercase",
+            "us_states_abbreviations",
+            "canadian_regions_abbreviations",
+            "australian_states_abbreviations",
+            "germany_regions_abbreviations",
+            "uk_regions_abbreviations"
+            ],
+          "tokenizer": "standard"
+        }
+      },
+      "filter": {
+        "multilang_stop": {
+          "type": "stop",
+          "stopwords": ["_czech_", "_danish_", "_dutch_", "_estonian_", "_finnish_", "_german_", "_hungarian_", "_italian_", "_latvian_", "_spanish_", "_turkish_", "a", "an", "and", "the"]
+        },
+        "company_abbreviations": {
+          "type": "synonym",
+            "synonyms": [
+            "inc => incororated",
+            "corp => corporation",
+            "llc => limited liability company",
+            "ltd => limited",
+            "plc => public limited partnership",
+            "llp => limited liability partnership",
+            "ag => aktiengesellschaft",
+            "gmbh => gesellschaft beschrankter haftung",
+            "ev => eingetragener verein",
+            "sarl => societe responsabilite limitee",
+            "sa => societe anonyme, sociedade anonima, spolka akcyjna",
+            "sas => socieete actions simplifiee",
+            "spa => societa azioni",
+            "bv => besloten vennootschap",
+            "nv => naamloze vennootschap",
+            "ab => aktiebolag",
+            "aps => anpartsselskab",
+            "as => aktieselskab, aksjeselskap, akciova spolecnost, anonim sirket",
+            "lda => limitada",
+            "dac => designated activity company",
+            "kft => korlatolt felelossegu tarsasag",
+            "zrt => zartkpruen mukodo reszvenytarsasag",
+            "pvt ltd, pte ltd => private limited",
+            "sdn bhd => sendirian berhad",
+            "bhd => berhad",
+            "pt => perseroan terbatas",
+            "cv => commanditaire vennootschap",
+            "koop => kooperatif"
+            ]
+        },
+        "us_states_abbreviations": {
+          "type": "synonym",
+          "synonyms": [
+            "al => alabama",
+            "ak => alaska",
+            "az => arizona",
+            "ar => arkansas",
+            "ca => california",
+            "co => colorado",
+            "ct => connecticut",
+            "de => delaware",
+            "fl => florida",
+            "ga => georgia",
+            "hi => hawaii",
+            "id => idaho",
+            "il => illinois",
+            "in => indiana",
+            "ia => iowa",
+            "ks => kansas",
+            "ky => kentucky",
+            "la => louisiana",
+            "me => maine",
+            "md => maryland",
+            "ma => massachusetts",
+            "mi => michigan",
+            "mn => minnesota",
+            "ms => mississippi",
+            "mo => missouri",
+            "mt => montana",
+            "ne => nebraska",
+            "nv => nevada",
+            "nh => new hampshire",
+            "nj => new jersey",
+            "nm => new mexico",
+            "ny => new york",
+            "nc => north carolina",
+            "nd => north dakota",
+            "oh => ohio",
+            "ok => oklahoma",
+            "or => oregon",
+            "pa => pennsylvania",
+            "ri => rhode island",
+            "sc => south carolina",
+            "sd => south dakota",
+            "tn => tennessee",
+            "tx => texas",
+            "ut => utah",
+            "vt => vermont",
+            "va => virginia",
+            "wa => washington",
+            "wv => west virginia",
+            "wi => wisconsin",
+            "wy => wyoming"
+            ]
+        },
+        "canadian_regions_abbreviations": {
+          "type": "synonym",
+          "synonyms": [
+            "on => ontario",
+            "qc => quebec",
+            "bc => british columbia",
+            "ab => alberta",
+            "ns => nova scotia",
+            "nb => new brunswick",
+            "mb => manitoba",
+            "sk => saskatchewan",
+            "pe => prince edward island",
+            "nl => newfoundland and labrador",
+            "nt => northwest territories",
+            "nu => nunavut",
+            "yt => yukon"
+            ]
+        },
+        "australian_states_abbreviations": {
+          "type": "synonym",
+          "synonyms": [
+            "act => australian capital territory",
+            "nsw => new south wales",
+            "nt => northern territory",
+            "qld => queensland",
+            "sa => south australia",
+            "tas => tasmania",
+            "vic => victoria",
+            "wa => western australia"
+            ]
+        },
+        "germany_regions_abbreviations": {
+          "type": "synonym",
+          "synonyms": [
+            "bw => baden württemberg",
+            "by => bavaria",
+            "be => berlin",
+            "bb => brandenburg",
+            "hb => bremen",
+            "hh => hamburg",
+            "he => hesse",
+            "mv => mecklenburg vorpommern",
+            "ni => lower saxony",
+            "nw => north rhine westphalia",
+            "rp => rhineland palatinate",
+            "sl => saarland",
+            "sn => saxony",
+            "st => saxony-anhalt",
+            "sh => schleswig-holstein",
+            "th => thuringia"
+            ]
+        },
+        "uk_regions_abbreviations": {
+          "type": "synonym",
+          "synonyms": [
+            "eng => england",
+            "sct => scotland",
+            "wal => wales",
+            "ni => northern ireland"
+            ]
+        },
+        "asciifolding_preserve_original": {
+          "type": "asciifolding",
+          "preverse_original": true
+        }
+      },
+      "char_filter": {
+        "remove_special_chars": {
+          "type": "pattern_replace",
+          "pattern": "[./=()%&*!]",
+          "replacement": ""
+        }
+      }
+    }
+  },
+  "mappings": {
+      "dynamic": false,
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "country": {
+          "type": "text",
+          "analyzer": "standard",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 100
+            }
+          }
+        },
+        "industry": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "linkedin_url": {
+              "type": "keyword",
+              "ignore_above": 256
+        },
+        "locality": {
+          "type": "text",
+          "analyzer": "locality_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "name": {
+          "type": "text",
+          "analyzer": "name_analyzer"
+        }
+      }
+    }
+}
