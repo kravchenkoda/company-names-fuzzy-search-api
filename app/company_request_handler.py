@@ -1,8 +1,9 @@
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, ServiceUnavailable
 from typing import Mapping, Any, Generator
 
 from company import Company
 from search_query import SearchQuery
+from es import es_client
 
 
 class CompanyRequestHandler:
@@ -12,6 +13,7 @@ class CompanyRequestHandler:
 
     def __init__(self, request_data: Mapping[str, Any] | list[Mapping[str, Any]]):
         self.request_data = request_data
+        self.validate_es_connection()
         self.validate_bulk_non_empty_body()
 
     def validate_bulk_non_empty_body(self) -> None:
@@ -27,14 +29,50 @@ class CompanyRequestHandler:
         if isinstance(req_data, list):
             if len(self.request_data) == 0 or not req_data[0].keys():
                 raise bad_request
-        if 'ids' in req_data.keys() and not req_data['ids']:
+        elif 'ids' in req_data.keys() and not req_data['ids']:
             raise bad_request
+
+    @staticmethod
+    def validate_es_connection():
+        """
+        Validates the connection to Elasticsearch.
+
+        Raises:
+            ServiceUnavailable: If the Elasticsearch service is not available.
+        """
+        if not es_client.ping():
+            raise ServiceUnavailable(
+                'Service is not available at the moment. Please try again later.'
+            )
+
+    @staticmethod
+    def validate_payload_company_obj(payload_company_obj: Mapping[str, Any]):
+        """
+        Validates the payload company object against the attributes of the
+                                                            Company class.
+        Args:
+            payload_company_obj (Mapping[str, Any]): The payload company object.
+
+        Raises:
+            BadRequest: If the payload company object contains extra attributes not
+                                                        present in the Company class.
+        """
+        payload_attrs = payload_company_obj.keys()
+        company_attrs = vars(Company).keys()
+        extra_attrs = payload_attrs - company_attrs
+        if extra_attrs:
+            raise BadRequest(
+                f'Company does not have following attribute(s): {", ".join(extra_attrs)}. '
+                f'Given object: {payload_company_obj}'
+            )
 
     def bulk_add_update_company_obj_generator(self) -> Generator[Company, None, None]:
         """
-        Generator function to create Company objects from the bulk add or bulk update payload.
+        Generator function to create Company objects from the bulk add or bulk
+                                                                    update payload.
         """
         for company_object in self.request_data:
+            self.validate_payload_company_obj(company_object)
             yield Company(**company_object)
 
     def bulk_delete_company_obj_generator(self) -> Generator[Company, None, None]:
@@ -54,7 +92,8 @@ class CompanyRequestHandler:
 
         Args:
             search (SearchQuery): The SearchQuery instance for building queries.
-            payload_company_obj (Mapping[str, Any], optional): The payload company object. Defaults to None.
+            payload_company_obj (Mapping[str, Any], optional): The payload company
+                                                            object. Defaults to None.
 
         Returns:
             Mapping[str, Any]: The search query.
