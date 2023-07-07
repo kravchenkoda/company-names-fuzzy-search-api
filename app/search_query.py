@@ -9,7 +9,7 @@ from es import es_client
 class SearchQuery:
     """Class for performing search in Elasticsearch."""
 
-    def __init__(self, index, max_results=10):
+    def __init__(self, index, max_results=1):
         """Initialize the SearchQuery instance.
 
         Args:
