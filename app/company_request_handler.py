@@ -147,3 +147,28 @@ class CompanyRequestHandler:
         """Create a single Company object from the payload."""
         payload = self.request_data
         return Company(**payload[0])
+
+    @staticmethod
+    def validate_search_size_header(search_size_header_parser) -> SearchQuery:
+        """
+        Validate the X-Max-Results-Per-Query header value and create a SearchQuery
+                                                                            object.
+        Args:
+            search_size_header_parser: The parser for the search size header.
+
+        Returns:
+            A SearchQuery object with the specified max_results value.
+
+        Raises:
+            BadRequest: If the X-Max-Results-Per-Query header value is more than 5.
+        """
+        max_results = search_size_header_parser.parse_args().get(
+            'X-Max-Results-Per-Query', 1
+        )
+
+        if max_results < 1 or max_results > 5:
+            raise BadRequest(
+                'X-Max-Results-Per-Query header value must be an integer '
+                'between 1 and 5.'
+            )
+        return SearchQuery('companies', max_results)
