@@ -24,7 +24,7 @@ class CompanyRequestHandler:
                                             and return 503 status code."""
         def wrapper(*args, **kwargs):
             try:
-                func(*args, **kwargs)
+                return func(*args, **kwargs)
             except elastic_transport.ConnectionError:
                 raise ServiceUnavailable
         return wrapper
