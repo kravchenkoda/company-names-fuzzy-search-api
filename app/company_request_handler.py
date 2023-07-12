@@ -1,9 +1,11 @@
-from werkzeug.exceptions import BadRequest, ServiceUnavailable
 from typing import Mapping, Any, Generator
+
+import elastic_transport
+from flask_restx.reqparse import RequestParser
+from werkzeug.exceptions import BadRequest, ServiceUnavailable
 
 from company import Company
 from search_query import SearchQuery
-from es import es_client
 
 
 class CompanyRequestHandler:
@@ -11,10 +13,21 @@ class CompanyRequestHandler:
     Handles company-related requests.
     """
 
-    def __init__(self, request_data: Mapping[str, Any] | list[Mapping[str, Any]]):
+    def __init__(self, request_data: Mapping[str, Any] | list[Mapping[str, Any]] | list[int]):
         self.request_data = request_data
-        self.validate_es_connection()
         self.validate_bulk_non_empty_body()
+
+    @staticmethod
+    def handle_elastic_connection_err(func):
+        """
+        Decorator function to catch elastic_transport.Connection errors
+                                            and return 503 status code."""
+        def wrapper(*args, **kwargs):
+            try:
+                func(*args, **kwargs)
+            except elastic_transport.ConnectionError:
+                raise ServiceUnavailable
+        return wrapper
 
     def validate_bulk_non_empty_body(self) -> None:
         """
@@ -33,19 +46,6 @@ class CompanyRequestHandler:
             raise bad_request
 
     @staticmethod
-    def validate_es_connection():
-        """
-        Validates the connection to Elasticsearch.
-
-        Raises:
-            ServiceUnavailable: If the Elasticsearch service is not available.
-        """
-        if not es_client.ping():
-            raise ServiceUnavailable(
-                'Service is not available at the moment. Please try again later.'
-            )
-
-    @staticmethod
     def validate_payload_company_obj(payload_company_obj: Mapping[str, Any]):
         """
         Validates the payload company object against the attributes of the
@@ -57,8 +57,9 @@ class CompanyRequestHandler:
             BadRequest: If the payload company object contains extra attributes not
                                                         present in the Company class.
         """
-        payload_attrs = payload_company_obj.keys()
-        company_attrs = vars(Company).keys()
+        payload_attrs = set(payload_company_obj.keys())
+        company_attrs = set(vars(Company).keys())
+        company_attrs.add('id')
         extra_attrs = payload_attrs - company_attrs
         if extra_attrs:
             raise BadRequest(
@@ -149,7 +150,7 @@ class CompanyRequestHandler:
         return Company(**payload[0])
 
     @staticmethod
-    def validate_search_size_header(search_size_header_parser) -> SearchQuery:
+    def validate_search_size_header(search_size_header_parser: RequestParser) -> SearchQuery:
         """
         Validate the X-Max-Results-Per-Query header value and create a SearchQuery
                                                                             object.
@@ -162,9 +163,10 @@ class CompanyRequestHandler:
         Raises:
             BadRequest: If the X-Max-Results-Per-Query header value is more than 5.
         """
-        max_results = search_size_header_parser.parse_args().get(
-            'X-Max-Results-Per-Query', 1
-        )
+        max_results = search_size_header_parser.parse_args()['X-Max-Results-Per-Query']
+
+        if max_results is None:
+            max_results = 1
 
         if max_results < 1 or max_results > 5:
             raise BadRequest(
