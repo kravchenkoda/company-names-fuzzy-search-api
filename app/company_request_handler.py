@@ -1,6 +1,9 @@
 from typing import Mapping, Any, Generator
+from functools import wraps
 
 import elastic_transport
+import elasticsearch
+import werkzeug.exceptions
 from flask_restx.reqparse import RequestParser
 from werkzeug.exceptions import BadRequest, ServiceUnavailable
 
@@ -21,12 +24,28 @@ class CompanyRequestHandler:
     def handle_elastic_connection_err(func):
         """
         Decorator function to catch elastic_transport.Connection errors
-                                            and return 503 status code."""
+                                            and return 503 status code.
+        """
+        @wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
             except elastic_transport.ConnectionError:
                 raise ServiceUnavailable
+        return wrapper
+
+    @staticmethod
+    def handle_elastic_not_found_err(func):
+        """
+        Decorator function to catch elasticsearch.NotFound errors
+                                            and return 404 status code.
+        """
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except elasticsearch.NotFoundError:
+                raise werkzeug.exceptions.NotFound
         return wrapper
 
     def validate_bulk_non_empty_body(self) -> None:
