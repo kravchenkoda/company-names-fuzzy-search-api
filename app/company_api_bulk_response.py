@@ -1,5 +1,6 @@
 from typing import Mapping, Any
 
+from company import Company
 from company_request_handler import CompanyRequestHandler
 from bulk_response import BulkResponse
 
@@ -51,6 +52,27 @@ class CompanyApiBulkResponse:
         success_msg = 'created'
         for element in self.request_data:
             self.process_single_bulk_element(element, success_msg)
+
+    @staticmethod
+    def create_multisearch_resp(
+            payload: list[Mapping[str, Any]],
+            search_results: list[list[Company]]
+    ) -> Mapping[str, Any]:
+        """
+        Build the multisearch response body.
+
+        Args:
+            payload (list[Mapping[str, Any]]): A list of search requests.
+            search_results (list[list[Company]]): A list of search results
+                                                    corresponding to each request.
+        Returns:
+            Mapping[str, Any]: The response body containing the request and response pairs.
+        """
+        response_body = {'data': []}
+        for req, resp in zip(payload, search_results):
+            element = {'request': req, 'response': resp}
+            response_body['data'].append(element)
+        return response_body
 
     def create_bulk_resp(self) -> Mapping[str, list[Mapping[str, Any]]]:
         """
