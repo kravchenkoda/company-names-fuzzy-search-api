@@ -50,7 +50,7 @@ class CompaniesResourceRoot(Resource):
 
         return company_objects, 200
 
-    @ns.expect([company_model_no_id], validate=True)
+    @ns.ex([company_model_no_id], validate=True)
     @CompanyRequestHandler.handle_elastic_connection_err
     def post(self):
         payload: list[Mapping[str, Any]] = ns.payload
@@ -76,6 +76,7 @@ class CompaniesResourceRoot(Resource):
     @ns.expect([company_model], validate=True)
     @CompanyRequestHandler.handle_elastic_connection_err
     @CompanyRequestHandler.handle_elastic_not_found_err
+    @CompanyRequestHandler.handle_elastic_bad_request_err
     def patch(self):
         payload: list[Mapping[str, Any]] = ns.payload
         amount_of_companies = len(payload)
@@ -104,6 +105,7 @@ class CompanyDocument(Resource):
     @ns.marshal_with(company_model)
     @CompanyRequestHandler.handle_elastic_connection_err
     @CompanyRequestHandler.handle_elastic_not_found_err
+    @CompanyRequestHandler.handle_elastic_bad_request_err
     def get(self, id):
         search_res: Mapping[str, Any] = SearchQuery(
            'companies'
@@ -115,6 +117,7 @@ class CompanyDocument(Resource):
     @ns.expect(company_model_no_id)
     @CompanyRequestHandler.handle_elastic_connection_err
     @CompanyRequestHandler.handle_elastic_not_found_err
+    @CompanyRequestHandler.handle_elastic_bad_request_err
     def patch(self, id):
         response: Response = make_response()
         response.status_code = 200
@@ -126,6 +129,7 @@ class CompanyDocument(Resource):
 
     @CompanyRequestHandler.handle_elastic_connection_err
     @CompanyRequestHandler.handle_elastic_not_found_err
+    @CompanyRequestHandler.handle_elastic_bad_request_err
     def delete(self, id):
         response: Response = make_response()
         response.status_code = 204
@@ -179,6 +183,6 @@ class CompanyBulkDelete(Resource):
 
         response_body = CompanyApiBulkResponse(
             request_handler=request_handler, es_bulk_response=bulk_resp
-        ).response
+        ).create_bulk_resp()
 
         return response_body, 207
