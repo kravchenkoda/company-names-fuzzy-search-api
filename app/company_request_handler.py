@@ -48,6 +48,21 @@ class CompanyRequestHandler:
                 raise werkzeug.exceptions.NotFound
         return wrapper
 
+    @staticmethod
+    def handle_elastic_bad_request_err(func):
+        """
+        Decorator function to catch elasticsearch.BadRequest errors
+                                            and return 400 status code.
+        """
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except elasticsearch.BadRequestError as e:
+                err_msg = e.body['error']['root_cause'][0]['reason']
+                raise werkzeug.exceptions.BadRequest(err_msg)
+        return wrapper
+
     def validate_bulk_non_empty_body(self) -> None:
         """
         Validate the request data of bulk operations for a non-empty body.
